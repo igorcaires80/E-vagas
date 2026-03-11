@@ -17,18 +17,18 @@ usuarios = {
     "Hugo": "BYD MINI Preto (PBH3E31)", "Gabriela": "GWM ORA Branco (UJL2D89)"
 }
 
-# Horários atualizados para iniciar às 10:00
+# Horários a iniciar às 10:00
 horarios = ["10:00 - 13:00", "13:00 - 16:00", "16:00 - 19:00"]
 
-st.title("⚡ Agenda de Carregamento")
+st.title("⚡ Vagas-EV: Sistema de agendamento diário de Carregamento")
 
 nome = st.selectbox("Quem é você?", [""] + list(usuarios.keys()))
 
 if nome:
-    # Destaque do veículo e placa do motorista selecionado
-    st.success(f"🚗 **Seu Veículo:** {usuarios[nome]}")
+    # Destaque do veículo
+    st.success(f"🚗 **O seu Veículo:** {usuarios[nome]}")
     
-    # Seleção por botões (radio) em vez de linha horizontal
+    # Seleção por botões
     horario = st.radio("Escolha o Horário:", options=horarios)
     vaga = st.radio("Selecione a Vaga:", ["Vaga 1", "Vaga 2"], horizontal=True)
 
@@ -45,13 +45,13 @@ if nome:
             else:
                 novo = pd.DataFrame([{"Nome": nome, "Vaga": vaga, "Turno": horario, "Data": hoje}])
                 conn.update(worksheet="fila", data=pd.concat([df, novo], ignore_index=True))
-                st.success("Agendamento realizado com sucesso!")
+                st.success("Agendamento efetuado com sucesso!")
                 st.rerun()
         except Exception as e:
             st.error(f"Erro ao agendar: {e}")
 
 st.divider()
-st.subheader("📋 Grade de Hoje")
+st.subheader("📋 Grelha de Hoje")
 
 try:
     df_view = conn.read(worksheet="fila", ttl=0)
@@ -69,4 +69,19 @@ try:
             else:
                 col.success(f"✅ {h}\n\nLivre")
 except:
-    st.info("Agenda pronta para o primeiro registro.")
+    st.info("A agenda está pronta para o primeiro registo.")
+
+# --- PAINEL DE ADMINISTRAÇÃO ---
+st.divider()
+with st.expander("⚙️ Administração"):
+    st.warning("⚠️ Atenção: Esta ação irá apagar todos os agendamentos atuais.")
+    if st.button("🗑️ Limpar Fila (Zerar Agenda)"):
+        try:
+            # Cria um ficheiro vazio apenas com os cabeçalhos
+            df_vazio = pd.DataFrame(columns=["Nome", "Vaga", "Turno", "Data"])
+            # Substitui os dados da folha pelo ficheiro vazio
+            conn.update(worksheet="fila", data=df_vazio)
+            st.success("Fila limpa com sucesso! A grelha está agora vazia.")
+            st.rerun()
+        except Exception as e:
+            st.error(f"Erro ao limpar a fila: {e}")
