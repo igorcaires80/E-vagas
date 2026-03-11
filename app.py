@@ -53,7 +53,7 @@ st.markdown("""
 1. Verifique na **Grade de Hoje** (abaixo) quais horários e vagas estão livres.
 2. Selecione o seu nome na lista.
 3. Escolha a janela de horário e a vaga desejada.
-4. Clique em **Confirmar Agendamento**.
+4. Clique em **Confirmar Agendamento**.  
 Obs. Todos os dias a fila é zerada e o agendamento é disponibilizado às 10h.
 """)
 st.divider()
@@ -115,4 +115,5 @@ with st.expander("⚙️ Administração"):
         conn.update(worksheet="fila", data=df_vazio)
         st.success("Fila limpa com sucesso!")
         st.rerun()
+
 
