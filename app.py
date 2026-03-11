@@ -2,10 +2,17 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import datetime
+import pytz
 
 st.set_page_config(page_title="E-Vagas", page_icon="⚡")
 
 conn = st.connection("gsheets", type=GSheetsConnection)
+
+# --- CONFIGURAÇÃO DE FUSO HORÁRIO E DATA ---
+fuso_br = pytz.timezone('America/Sao_Paulo') # Garante o horário de Brasília
+agora = datetime.now(fuso_br)
+hoje = agora.strftime("%d/%m/%Y")
+hora_atual = agora.hour
 
 usuarios = {
     "Johana": "BYD King Branco (UIV6C56)", "Andréia": "BYD Yuan Pro Branco (PBZ6D66)",
@@ -17,46 +24,58 @@ usuarios = {
     "Hugo": "BYD MINI Preto (PBH3E31)", "Gabriela": "GWM ORA Branco (UJL2D89)"
 }
 
-# Horários a iniciar às 10:00
 horarios = ["10:00 - 13:00", "13:00 - 16:00", "16:00 - 19:00"]
 
-st.title("⚡ Vagas-EV: Sistema de agendamento diário de Carregamento")
+# --- AUTOMAÇÃO: LIMPEZA DIÁRIA INTELIGENTE ---
+try:
+    df_geral = conn.read(worksheet="fila", ttl=0)
+    # Se houver dados na planilha e existirem datas antigas, ele limpa e deixa só hoje
+    if not df_geral.empty and 'Data' in df_geral.columns:
+        if not df_geral[df_geral['Data'] != hoje].empty:
+            df_limpo = df_geral[df_geral['Data'] == hoje]
+            conn.update(worksheet="fila", data=df_limpo)
+except:
+    pass # Ignora erros silenciosamente se a planilha estiver vazia
 
-nome = st.selectbox("Quem é você?", [""] + list(usuarios.keys()))
+st.title("⚡ Agenda de Carregamento")
 
-if nome:
-    # Destaque do veículo
-    st.success(f"🚗 **O seu Veículo:** {usuarios[nome]}")
-    
-    # Seleção por botões
-    horario = st.radio("Escolha o Horário:", options=horarios)
-    vaga = st.radio("Selecione a Vaga:", ["Vaga 1", "Vaga 2"], horizontal=True)
+# --- REGRA DE NEGÓCIO: BLOQUEIO ANTES DAS 10H ---
+if hora_atual < 10:
+    st.warning("⏳ Bom dia! A marcação de vagas só é liberada a partir das **10h da manhã**.")
+    st.info(f"🕒 Horário atual do sistema: {agora.strftime('%H:%M')}")
+else:
+    # Mostra o formulário apenas se for 10h ou mais
+    st.subheader("Fazer Reserva")
+    nome = st.selectbox("Quem é você?", [""] + list(usuarios.keys()))
 
-    if st.button("Confirmar Agendamento"):
-        try:
-            df = conn.read(worksheet="fila", ttl=0)
-            hoje = datetime.now().strftime("%d/%m/%Y")
-            
-            if df is None or df.empty:
-                df = pd.DataFrame(columns=["Nome", "Vaga", "Turno", "Data"])
-            
-            if not df[(df['Turno'] == horario) & (df['Vaga'] == vaga) & (df['Data'] == hoje)].empty:
-                st.error("Este horário já está ocupado nesta vaga!")
-            else:
-                novo = pd.DataFrame([{"Nome": nome, "Vaga": vaga, "Turno": horario, "Data": hoje}])
-                conn.update(worksheet="fila", data=pd.concat([df, novo], ignore_index=True))
-                st.success("Agendamento efetuado com sucesso!")
-                st.rerun()
-        except Exception as e:
-            st.error(f"Erro ao agendar: {e}")
+    if nome:
+        st.success(f"🚗 **Seu Veículo:** {usuarios[nome]}")
+        
+        horario = st.radio("Escolha o Horário:", options=horarios)
+        vaga = st.radio("Selecione a Vaga:", ["Vaga 1", "Vaga 2"], horizontal=True)
+
+        if st.button("Confirmar Agendamento"):
+            try:
+                df = conn.read(worksheet="fila", ttl=0)
+                if df is None or df.empty:
+                    df = pd.DataFrame(columns=["Nome", "Vaga", "Turno", "Data"])
+                
+                if not df[(df['Turno'] == horario) & (df['Vaga'] == vaga) & (df['Data'] == hoje)].empty:
+                    st.error("⚠️ Este horário já está ocupado nesta vaga!")
+                else:
+                    novo = pd.DataFrame([{"Nome": nome, "Vaga": vaga, "Turno": horario, "Data": hoje}])
+                    conn.update(worksheet="fila", data=pd.concat([df, novo], ignore_index=True))
+                    st.success("✅ Agendamento realizado com sucesso!")
+                    st.rerun()
+            except Exception as e:
+                st.error(f"Erro ao agendar: {e}")
 
 st.divider()
-st.subheader("📋 Grelha de Hoje")
+st.subheader("📋 Grade de Hoje")
 
+# Visualização da Grade
 try:
     df_view = conn.read(worksheet="fila", ttl=0)
-    hoje = datetime.now().strftime("%d/%m/%Y")
-    
     df_hoje = df_view[df_view['Data'] == hoje] if df_view is not None else pd.DataFrame()
     
     for h in horarios:
@@ -69,19 +88,13 @@ try:
             else:
                 col.success(f"✅ {h}\n\nLivre")
 except:
-    st.info("A agenda está pronta para o primeiro registo.")
+    st.info("Agenda pronta para o primeiro registro.")
 
-# --- PAINEL DE ADMINISTRAÇÃO ---
-st.divider()
+# --- PAINEL DE ADMINISTRAÇÃO OMITIDO PARA USUÁRIOS COMUNS ---
 with st.expander("⚙️ Administração"):
-    st.warning("⚠️ Atenção: Esta ação irá apagar todos os agendamentos atuais.")
-    if st.button("🗑️ Limpar Fila (Zerar Agenda)"):
-        try:
-            # Cria um ficheiro vazio apenas com os cabeçalhos
-            df_vazio = pd.DataFrame(columns=["Nome", "Vaga", "Turno", "Data"])
-            # Substitui os dados da folha pelo ficheiro vazio
-            conn.update(worksheet="fila", data=df_vazio)
-            st.success("Fila limpa com sucesso! A grelha está agora vazia.")
-            st.rerun()
-        except Exception as e:
-            st.error(f"Erro ao limpar a fila: {e}")
+    st.warning("Esta ação limpará a agenda do dia manualmente.")
+    if st.button("🗑️ Limpar Fila Agora"):
+        df_vazio = pd.DataFrame(columns=["Nome", "Vaga", "Turno", "Data"])
+        conn.update(worksheet="fila", data=df_vazio)
+        st.success("Fila limpa com sucesso!")
+        st.rerun()
