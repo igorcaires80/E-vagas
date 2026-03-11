@@ -7,7 +7,7 @@ st.set_page_config(page_title="E-Vaga: Agenda", page_icon="⚡")
 
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# Sua lista de usuários permanece a mesma
+# Lista de usuários (mantida conforme sua lista oficial)
 usuarios = {
     "Johana": "BYD King Branco (UIV6C56)",
     "Andréia": "BYD Yuan Pro Branco (PBZ6D66)",
@@ -26,60 +26,81 @@ usuarios = {
 }
 
 st.title("⚡ Agenda de Carregamento")
-st.markdown("Reserve seu horário. **Máximo 3h por veículo.**")
+st.markdown("Reserve seu horário. **Limite: 3h por veículo.**")
 
 # 1. Seleção de Usuário
 nome_sel = st.selectbox("Selecione seu nome:", [""] + list(usuarios.keys()))
 
-# 2. Seleção de Horário (Fila Dinâmica)
+# 2. Janelas de Horário ajustadas para encerrar às 19:00
 horarios_disponiveis = [
-    "08:00 - 11:00", "11:00 - 14:00", 
-    "14:00 - 17:00", "17:00 - 20:00"
+    "07:00 - 10:00", 
+    "10:00 - 13:00", 
+    "13:00 - 16:00", 
+    "16:00 - 19:00"
 ]
 
 if nome_sel:
-    # Mostra qual veículo a pessoa está usando
     st.caption(f"Veículo: {usuarios[nome_sel]}")
     
     # Seleção da Janela de Horário
     horario_sel = st.select_slider("Escolha sua janela de horário:", options=horarios_disponiveis)
     
-    # Seleção da Vaga (1 ou 2)
+    # Seleção da Vaga
     vaga_sel = st.radio("Selecione a Vaga:", ["Vaga 1", "Vaga 2"], horizontal=True)
 
     if st.button("Confirmar Agendamento"):
         df_existente = conn.read(worksheet="fila", ttl=0)
         
-        # Verifica se o horário e vaga já estão ocupados
-        conflito = df_existente[(df_existente['Turno'] == horario_sel) & (df_existente['Vaga'] == vaga_sel)]
+        # Verifica se o horário e vaga já estão ocupados para o dia de hoje
+        data_hoje = datetime.now().strftime("%d/%m/%Y")
+        conflito = df_existente[
+            (df_existente['Turno'] == horario_sel) & 
+            (df_existente['Vaga'] == vaga_sel) & 
+            (df_existente['Data'] == data_hoje)
+        ]
         
         if not conflito.empty:
-            st.error(f"Ops! A {vaga_sel} já está reservada para o horário {horario_sel}.")
+            st.error(f"A {vaga_sel} já está ocupada das {horario_sel}.")
         else:
             novo_registro = pd.DataFrame([{
                 "Nome": nome_sel,
                 "Vaga": vaga_sel,
                 "Turno": horario_sel,
-                "Data": datetime.now().strftime("%d/%m/%Y")
+                "Data": data_hoje
             }])
             updated_df = pd.concat([df_existente, novo_registro], ignore_index=True)
             conn.update(worksheet="fila", data=updated_df)
-            st.success("Horário agendado com sucesso!")
+            st.success(f"Agendado! {nome_sel} na {vaga_sel} das {horario_sel}.")
             st.rerun()
 
 st.divider()
 
-# 3. Visualização da Agenda (Tabela Organizadora)
-st.subheader("📋 Grade de Horários")
+# 3. Visualização da Agenda Organizada
+st.subheader("📋 Grade de Ocupação (Hoje)")
 df_view = conn.read(worksheet="fila", ttl=0)
 
 if not df_view.empty:
-    # Mostra a lista de forma organizada por horário
-    st.table(df_view.sort_values(by="Turno")[["Turno", "Vaga", "Nome"]])
+    # Filtrar apenas dados de hoje para não poluir a tela
+    data_atual = datetime.now().strftime("%d/%m/%Y")
+    df_hoje = df_view[df_view['Data'] == data_atual].sort_values(by=["Turno", "Vaga"])
+    
+    if not df_hoje.empty:
+        # Exibição estilizada
+        for hr in horarios_disponiveis:
+            cols = st.columns(2)
+            for idx, vg in enumerate(["Vaga 1", "Vaga 2"]):
+                reserva = df_hoje[(df_hoje['Turno'] == hr) & (df_hoje['Vaga'] == vg)]
+                if not reserva.empty:
+                    cols[idx].error(f"🚫 {hr}\n\n{reserva.iloc[0]['Nome']}")
+                else:
+                    cols[idx].success(f"✅ {hr}\n\nDisponível")
+    else:
+        st.info("Nenhuma reserva para hoje.")
 else:
-    st.info("Nenhum horário reservado para hoje.")
+    st.info("A agenda está vazia.")
 
-# Botão de Gestão para o Adm
-if st.button("Zerar Agenda (Novo Dia)"):
-    conn.update(worksheet="fila", data=pd.DataFrame(columns=["Nome", "Vaga", "Turno", "Data"]))
-    st.rerun()
+# Botão de Gestão
+with st.expander("⚙️ Administração"):
+    if st.button("Limpar todos os dados da Planilha"):
+        conn.update(worksheet="fila", data=pd.DataFrame(columns=["Nome", "Vaga", "Turno", "Data"]))
+        st.rerun()
