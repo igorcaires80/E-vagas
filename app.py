@@ -45,7 +45,7 @@ try:
 except:
     pass 
 
-st.title("⚡ E-Vagas EV do CNJ")
+st.title("⚡ E-Vagas EV")
 st.divider()
 # --- INSTRUÇÕES DE AGENDAMENTO ---
 st.markdown("""
@@ -116,6 +116,7 @@ with st.expander("⚙️ Administração"):
         conn.update(worksheet="fila", data=df_vazio)
         st.success("Fila limpa com sucesso!")
         st.rerun()
+
 
 
 
