@@ -45,9 +45,11 @@ try:
 except:
     pass 
 
-st.title("⚡ E-Vagas EV  
-Seu APP de reservas de vagas de carregamento no CNJ")
+# --- TÍTULO E SUBTÍTULO CORRIGIDOS ---
+st.title("⚡ E-Vagas EV")
+st.subheader("Seu APP de reservas de vagas de carregamento no CNJ")
 st.divider()
+
 # --- INSTRUÇÕES DE AGENDAMENTO ---
 st.markdown("""
 **Como agendar o seu carregamento:**
@@ -107,19 +109,3 @@ try:
             else:
                 col.success(f"✅ {h}\n\nLivre")
 except:
-    st.info("Agenda pronta para o primeiro registro.")
-
-# --- PAINEL DE ADMINISTRAÇÃO ---
-with st.expander("⚙️ Administração"):
-    st.warning("Esta ação limpará a agenda do dia manualmente.")
-    if st.button("🗑️ Limpar Fila Agora"):
-        df_vazio = pd.DataFrame(columns=["Nome", "Vaga", "Turno", "Data"])
-        conn.update(worksheet="fila", data=df_vazio)
-        st.success("Fila limpa com sucesso!")
-        st.rerun()
-
-
-
-
-
-
