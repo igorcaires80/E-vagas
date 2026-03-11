@@ -3,9 +3,8 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import datetime
 
-st.set_page_config(page_title="E-Vaga: Agenda", page_icon="⚡")
+st.set_page_config(page_title="E-Vagas", page_icon="⚡")
 
-# Conexão com o Google Sheets via Service Account
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 usuarios = {
@@ -18,59 +17,56 @@ usuarios = {
     "Hugo": "BYD MINI Preto (PBH3E31)", "Gabriela": "GWM ORA Branco (UJL2D89)"
 }
 
-horarios_disponiveis = ["07:00 - 10:00", "10:00 - 13:00", "13:00 - 16:00", "16:00 - 19:00"]
+# Horários atualizados para iniciar às 10:00
+horarios = ["10:00 - 13:00", "13:00 - 16:00", "16:00 - 19:00"]
 
 st.title("⚡ Agenda de Carregamento")
 
-# Formulário
-nome_sel = st.selectbox("Selecione seu nome:", [""] + list(usuarios.keys()))
+nome = st.selectbox("Quem é você?", [""] + list(usuarios.keys()))
 
-if nome_sel:
-    horario_sel = st.select_slider("Janela de horário:", options=horarios_disponiveis)
-    vaga_sel = st.radio("Selecione a Vaga:", ["Vaga 1", "Vaga 2"], horizontal=True)
+if nome:
+    # Destaque do veículo e placa do motorista selecionado
+    st.success(f"🚗 **Seu Veículo:** {usuarios[nome]}")
+    
+    # Seleção por botões (radio) em vez de linha horizontal
+    horario = st.radio("Escolha o Horário:", options=horarios)
+    vaga = st.radio("Selecione a Vaga:", ["Vaga 1", "Vaga 2"], horizontal=True)
 
     if st.button("Confirmar Agendamento"):
         try:
-            df = conn.read(worksheet="fila", ttl="0s")
-            data_hoje = datetime.now().strftime("%d/%m/%Y")
+            df = conn.read(worksheet="fila", ttl=0)
+            hoje = datetime.now().strftime("%d/%m/%Y")
             
-            # Adiciona colunas se estiver vazio
             if df is None or df.empty:
                 df = pd.DataFrame(columns=["Nome", "Vaga", "Turno", "Data"])
-
-            conflito = df[(df['Turno'] == horario_sel) & (df['Vaga'] == vaga_sel) & (df['Data'] == data_hoje)]
             
-            if not conflito.empty:
-                st.error("Horário já ocupado!")
+            if not df[(df['Turno'] == horario) & (df['Vaga'] == vaga) & (df['Data'] == hoje)].empty:
+                st.error("Este horário já está ocupado nesta vaga!")
             else:
-                novo = pd.DataFrame([{"Nome": nome_sel, "Vaga": vaga_sel, "Turno": horario_sel, "Data": data_hoje}])
-                df_final = pd.concat([df, novo], ignore_index=True)
-                conn.update(worksheet="fila", data=df_final)
-                st.success("Agendado!")
+                novo = pd.DataFrame([{"Nome": nome, "Vaga": vaga, "Turno": horario, "Data": hoje}])
+                conn.update(worksheet="fila", data=pd.concat([df, novo], ignore_index=True))
+                st.success("Agendamento realizado com sucesso!")
                 st.rerun()
         except Exception as e:
-            st.error(f"Erro ao salvar: {e}")
+            st.error(f"Erro ao agendar: {e}")
 
 st.divider()
-st.subheader("📋 Grade de Ocupação")
+st.subheader("📋 Grade de Hoje")
 
 try:
-    df_view = conn.read(worksheet="fila", ttl="0s")
-    data_hoje = datetime.now().strftime("%d/%m/%Y")
+    df_view = conn.read(worksheet="fila", ttl=0)
+    hoje = datetime.now().strftime("%d/%m/%Y")
     
-    if df_view is not None and not df_view.empty:
-        df_hoje = df_view[df_view['Data'] == data_hoje]
-    else:
-        df_hoje = pd.DataFrame()
-
-    for hr in horarios_disponiveis:
+    df_hoje = df_view[df_view['Data'] == hoje] if df_view is not None else pd.DataFrame()
+    
+    for h in horarios:
         c1, c2 = st.columns(2)
-        vagas_cols = {"Vaga 1": c1, "Vaga 2": c2}
-        for v_nome, v_col in vagas_cols.items():
-            reserva = df_hoje[(df_hoje['Turno'] == hr) & (df_hoje['Vaga'] == v_nome)]
-            if not reserva.empty:
-                v_col.error(f"🚫 {hr}\n\n{reserva.iloc[0]['Nome']}")
+        for i, v in enumerate(["Vaga 1", "Vaga 2"]):
+            res = df_hoje[(df_hoje['Turno'] == h) & (df_hoje['Vaga'] == v)]
+            col = [c1, c2][i]
+            if not res.empty:
+                col.error(f"🚫 {h}\n\n**{res.iloc[0]['Nome']}**")
             else:
-                v_col.success(f"✅ {hr}\n\nLivre")
+                col.success(f"✅ {h}\n\nLivre")
 except:
     st.info("Agenda pronta para o primeiro registro.")
