@@ -3,13 +3,11 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import datetime
 
-# Configuração da página para ficar bem no celular (WhatsApp)
-st.set_page_config(page_title="E-Vaga: Gestão", page_icon="⚡")
+st.set_page_config(page_title="E-Vaga: Agenda", page_icon="⚡")
 
-# Conexão com o Google Sheets
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# --- A SUA LISTA DE INTERESSADOS ---
+# Sua lista de usuários permanece a mesma
 usuarios = {
     "Johana": "BYD King Branco (UIV6C56)",
     "Andréia": "BYD Yuan Pro Branco (PBZ6D66)",
@@ -27,62 +25,61 @@ usuarios = {
     "Gabriela": "GWM ORA Branco (UJL2D89)"
 }
 
-st.title("⚡ Gestão de Vagas EV")
+st.title("⚡ Agenda de Carregamento")
+st.markdown("Reserve seu horário. **Máximo 3h por veículo.**")
 
-# Seção de Check-in
-st.subheader("Fazer Check-in")
+# 1. Seleção de Usuário
 nome_sel = st.selectbox("Selecione seu nome:", [""] + list(usuarios.keys()))
 
+# 2. Seleção de Horário (Fila Dinâmica)
+horarios_disponiveis = [
+    "08:00 - 11:00", "11:00 - 14:00", 
+    "14:00 - 17:00", "17:00 - 20:00"
+]
+
 if nome_sel:
-    veiculo_info = usuarios[nome_sel]
-    st.info(f"**Veículo:** {veiculo_info}")
+    # Mostra qual veículo a pessoa está usando
+    st.caption(f"Veículo: {usuarios[nome_sel]}")
     
-    turno = st.radio("Turno de uso:", ["Manhã", "Tarde"], horizontal=True)
+    # Seleção da Janela de Horário
+    horario_sel = st.select_slider("Escolha sua janela de horário:", options=horarios_disponiveis)
     
-    if st.button("Confirmar Entrada na Fila"):
-        # Lógica para salvar na planilha
+    # Seleção da Vaga (1 ou 2)
+    vaga_sel = st.radio("Selecione a Vaga:", ["Vaga 1", "Vaga 2"], horizontal=True)
+
+    if st.button("Confirmar Agendamento"):
         df_existente = conn.read(worksheet="fila", ttl=0)
         
-        # Extrair placa e modelo do texto
-        try:
-            placa = veiculo_info.split("(")[1].replace(")", "")
-            modelo = veiculo_info.split("(")[0]
-        except:
-            placa = "N/A"
-            modelo = veiculo_info
-
-        novo_registro = pd.DataFrame([{
-            "Nome": nome_sel,
-            "Veiculo": modelo,
-            "Placa": placa,
-            "Turno": turno,
-            "Hora_Checkin": datetime.now().strftime("%H:%M")
-        }])
+        # Verifica se o horário e vaga já estão ocupados
+        conflito = df_existente[(df_existente['Turno'] == horario_sel) & (df_existente['Vaga'] == vaga_sel)]
         
-        updated_df = pd.concat([df_existente, novo_registro], ignore_index=True)
-        conn.update(worksheet="fila", data=updated_df)
-        st.success(f"Check-in realizado! Você está na fila.")
-        st.rerun()
+        if not conflito.empty:
+            st.error(f"Ops! A {vaga_sel} já está reservada para o horário {horario_sel}.")
+        else:
+            novo_registro = pd.DataFrame([{
+                "Nome": nome_sel,
+                "Vaga": vaga_sel,
+                "Turno": horario_sel,
+                "Data": datetime.now().strftime("%d/%m/%Y")
+            }])
+            updated_df = pd.concat([df_existente, novo_registro], ignore_index=True)
+            conn.update(worksheet="fila", data=updated_df)
+            st.success("Horário agendado com sucesso!")
+            st.rerun()
 
 st.divider()
 
-# Exibição da Fila em Tempo Real
-st.subheader("📋 Status das Vagas")
-try:
-    df_fila = conn.read(worksheet="fila", ttl=0)
-    if not df_fila.empty:
-        for i, row in df_fila.iterrows():
-            if i < 2:
-                st.success(f"🔋 **VAGA {i+1}: {row['Nome']}** ({row['Turno']})")
-            else:
-                st.warning(f"⏳ {i+1}º da Fila: {row['Nome']} ({row['Turno']})")
-    else:
-        st.info("Vagas disponíveis no momento.")
-except:
-    st.info("Aguardando o primeiro check-in...")
+# 3. Visualização da Agenda (Tabela Organizadora)
+st.subheader("📋 Grade de Horários")
+df_view = conn.read(worksheet="fila", ttl=0)
 
-# Área do Gestor (Igor)
-with st.expander("⚙️ Painel do Gestor"):
-    if st.button("Limpar Fila (Zerar Dia)"):
-        conn.update(worksheet="fila", data=pd.DataFrame(columns=["Nome", "Veiculo", "Placa", "Turno", "Hora_Checkin"]))
-        st.rerun()
+if not df_view.empty:
+    # Mostra a lista de forma organizada por horário
+    st.table(df_view.sort_values(by="Turno")[["Turno", "Vaga", "Nome"]])
+else:
+    st.info("Nenhum horário reservado para hoje.")
+
+# Botão de Gestão para o Adm
+if st.button("Zerar Agenda (Novo Dia)"):
+    conn.update(worksheet="fila", data=pd.DataFrame(columns=["Nome", "Vaga", "Turno", "Data"]))
+    st.rerun()
