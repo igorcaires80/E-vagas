@@ -45,7 +45,7 @@ try:
 except:
     pass 
 
-st.title("⚡ Agenda de Carregamento")
+st.title("⚡ E-Vagas CNJ: Sistema de agendamento de uso de vagas de carregamento veicular elétrico")
 
 # --- REGRA DE NEGÓCIO: BLOQUEIO ANTES DAS 10H ---
 if hora_atual < 10:
@@ -104,3 +104,4 @@ with st.expander("⚙️ Administração"):
         conn.update(worksheet="fila", data=df_vazio)
         st.success("Fila limpa com sucesso!")
         st.rerun()
+
