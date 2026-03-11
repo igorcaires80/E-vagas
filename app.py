@@ -123,7 +123,7 @@ with st.form("form_ocorrencia"):
     reportador = st.selectbox("Seu nome (Quem está reportando):", [""] + list(usuarios.keys()))
     turno_invadido = st.selectbox("Em qual turno ocorreu?", horarios)
     vaga_invadida = st.radio("Em qual vaga?", ["Vaga 1", "Vaga 2"], horizontal=True)
-    infrator = st.text_input("Placa ou descrição do carro invasor (ex: BYD Branco placa XYZ):")
+    infrator = st.text_input("Placa ou descrição do carro (ex: BYD Branco placa XYZ):")
     
     if st.form_submit_button("Registrar Ocorrência"):
         if reportador == "":
@@ -157,3 +157,4 @@ with st.expander("⚙️ Administração"):
         conn.update(worksheet="fila", data=df_vazio)
         st.success("Fila limpa com sucesso!")
         st.rerun()
+
