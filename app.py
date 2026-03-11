@@ -50,7 +50,7 @@ st.title("⚡ E-Vagas EV")
 st.subheader("Seu APP de reservas de vagas de carregamento no CNJ")
 st.divider()
 
-# --- INSTRUÇÕES DE AGENDAMENTO (Formato Seguro) ---
+# --- INSTRUÇÕES DE AGENDAMENTO ---
 texto_instrucoes = (
     "**Como agendar o seu carregamento:**\n"
     "1. Verifique na **Grade de Hoje** (abaixo) quais horários e vagas estão livres.\n"
@@ -105,13 +105,51 @@ try:
             res = df_hoje[(df_hoje['Turno'] == h) & (df_hoje['Vaga'] == v)]
             col = [c1, c2][i]
             if not res.empty:
-                col.error(f"🚫 {h}\n\n**{res.iloc[0]['Nome']}**")
+                nome_reserva = res.iloc[0]['Nome']
+                carro_reserva = usuarios.get(nome_reserva, "")
+                # Exibindo o nome em destaque e o carro/placa logo abaixo
+                col.error(f"🚫 {h}\n\n**{nome_reserva}**\n\n🚗 {carro_reserva}")
             else:
                 col.success(f"✅ {h}\n\nLivre")
 except Exception:
     st.info("Agenda pronta para o primeiro registro.")
 
+# --- PAINEL DE OCORRÊNCIAS (NOVO) ---
+st.divider()
+st.subheader("🚨 Reportar Uso Indevido")
+st.write("Alguém estacionou na vaga errada ou fora do horário? Registre aqui.")
+
+with st.form("form_ocorrencia"):
+    reportador = st.selectbox("Seu nome (Quem está reportando):", [""] + list(usuarios.keys()))
+    turno_invadido = st.selectbox("Em qual turno ocorreu?", horarios)
+    vaga_invadida = st.radio("Em qual vaga?", ["Vaga 1", "Vaga 2"], horizontal=True)
+    infrator = st.text_input("Placa ou descrição do carro invasor (ex: BYD Branco placa XYZ):")
+    
+    if st.form_submit_button("Registrar Ocorrência"):
+        if reportador == "":
+            st.warning("⚠️ Por favor, selecione seu nome para reportar.")
+        elif infrator == "":
+            st.warning("⚠️ Por favor, descreva o carro ou a placa do infrator.")
+        else:
+            try:
+                df_oc = conn.read(worksheet="ocorrencias", ttl=0)
+                if df_oc is None or df_oc.empty:
+                    df_oc = pd.DataFrame(columns=["Data", "Reportado_por", "Vaga", "Turno", "Infrator"])
+                
+                nova_oc = pd.DataFrame([{
+                    "Data": hoje, 
+                    "Reportado_por": reportador, 
+                    "Vaga": vaga_invadida, 
+                    "Turno": turno_invadido, 
+                    "Infrator": infrator
+                }])
+                conn.update(worksheet="ocorrencias", data=pd.concat([df_oc, nova_oc], ignore_index=True))
+                st.success("✅ Ocorrência registrada e enviada à administração!")
+            except Exception:
+                st.error("⚠️ ERRO: Crie uma aba chamada 'ocorrencias' na sua planilha do Google antes de usar esta função.")
+
 # --- PAINEL DE ADMINISTRAÇÃO ---
+st.divider()
 with st.expander("⚙️ Administração"):
     st.warning("Esta ação limpará a agenda do dia manualmente.")
     if st.button("🗑️ Limpar Fila Agora"):
