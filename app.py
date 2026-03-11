@@ -47,9 +47,19 @@ except:
 
 st.title("⚡ E-Vagas EV do CNJ")
 
+# --- INSTRUÇÕES DE AGENDAMENTO ---
+st.markdown("""
+**Como agendar o seu carregamento:**
+1. Verifique na **Grade de Hoje** (abaixo) quais horários e vagas estão livres.
+2. Selecione o seu nome na lista.
+3. Escolha a janela de horário e a vaga desejada.
+4. Clique em **Confirmar Agendamento**.
+""")
+st.divider()
+
 # --- REGRA DE NEGÓCIO: BLOQUEIO ANTES DAS 10H ---
 if hora_atual < 10:
-    st.warning("⏳ Bom dia! A marcação de vagas só é liberada a partir das **10h da manhã**.")
+    st.warning("⏳ Bom dia! A marcação de vagas só é liberada diariamente a partir das **10h da manhã**.")
     st.info(f"🕒 Horário atual do sistema: {agora.strftime('%H:%M')}")
 else:
     st.subheader("Fazer Reserva")
@@ -104,5 +114,3 @@ with st.expander("⚙️ Administração"):
         conn.update(worksheet="fila", data=df_vazio)
         st.success("Fila limpa com sucesso!")
         st.rerun()
-
-
