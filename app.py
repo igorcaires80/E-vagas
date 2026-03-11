@@ -45,17 +45,77 @@ try:
 except Exception:
     pass 
 
-# --- TÍTULO E SUBTÍTULO CORRIGIDOS ---
+# --- TÍTULO E SUBTÍTULO ---
 st.title("⚡ E-Vagas EV")
 st.subheader("Seu APP de reservas de vagas de carregamento no CNJ")
 st.divider()
 
-# --- INSTRUÇÕES DE AGENDAMENTO ---
-st.markdown("""
-**Como agendar o seu carregamento:**
-1. Verifique na **Grade de Hoje** (abaixo) quais horários e vagas estão livres.
-2. Selecione o seu nome na lista.
-3. Escolha a janela de horário e a vaga desejada.
-4. Clique em **Confirmar Agendamento**.  
+# --- INSTRUÇÕES DE AGENDAMENTO (Formato Seguro) ---
+texto_instrucoes = (
+    "**Como agendar o seu carregamento:**\n"
+    "1. Verifique na **Grade de Hoje** (abaixo) quais horários e vagas estão livres.\n"
+    "2. Selecione o seu nome na lista.\n"
+    "3. Escolha a janela de horário e a vaga desejada.\n"
+    "4. Clique em **Confirmar Agendamento**.\n\n"
+    "**Obs. Todos os dias a fila é zerada e o agendamento é disponibilizado novamente às 10h.**"
+)
+st.markdown(texto_instrucoes)
+st.divider()
 
-**Obs. Todos os dias a fila é zer
+# --- REGRA DE NEGÓCIO: BLOQUEIO ANTES DAS 10H ---
+if hora_atual < 10:
+    st.warning("⏳ Bom dia! A marcação de vagas só é liberada diariamente a partir das **10h da manhã**.")
+    st.info(f"🕒 Horário atual do sistema: {agora.strftime('%H:%M')}")
+else:
+    st.subheader("Fazer Reserva")
+    nome = st.selectbox("Quem é você?", [""] + list(usuarios.keys()))
+
+    if nome:
+        st.success(f"🚗 **Seu Veículo:** {usuarios[nome]}")
+        
+        horario = st.radio("Escolha o Horário:", options=horarios)
+        vaga = st.radio("Selecione a Vaga:", ["Vaga 1", "Vaga 2"], horizontal=True)
+
+        if st.button("Confirmar Agendamento"):
+            try:
+                df = conn.read(worksheet="fila", ttl=0)
+                if df is None or df.empty:
+                    df = pd.DataFrame(columns=["Nome", "Vaga", "Turno", "Data"])
+                
+                if not df[(df['Turno'] == horario) & (df['Vaga'] == vaga) & (df['Data'] == hoje)].empty:
+                    st.error("⚠️ Este horário já está ocupado nesta vaga!")
+                else:
+                    novo = pd.DataFrame([{"Nome": nome, "Vaga": vaga, "Turno": horario, "Data": hoje}])
+                    conn.update(worksheet="fila", data=pd.concat([df, novo], ignore_index=True))
+                    st.success("✅ Agendamento realizado com sucesso!")
+                    st.rerun()
+            except Exception as e:
+                st.error(f"Erro ao agendar: {e}")
+
+st.divider()
+st.subheader("📋 Grade de Hoje")
+
+try:
+    df_view = conn.read(worksheet="fila", ttl=0)
+    df_hoje = df_view[df_view['Data'] == hoje] if df_view is not None else pd.DataFrame()
+    
+    for h in horarios:
+        c1, c2 = st.columns(2)
+        for i, v in enumerate(["Vaga 1", "Vaga 2"]):
+            res = df_hoje[(df_hoje['Turno'] == h) & (df_hoje['Vaga'] == v)]
+            col = [c1, c2][i]
+            if not res.empty:
+                col.error(f"🚫 {h}\n\n**{res.iloc[0]['Nome']}**")
+            else:
+                col.success(f"✅ {h}\n\nLivre")
+except Exception:
+    st.info("Agenda pronta para o primeiro registro.")
+
+# --- PAINEL DE ADMINISTRAÇÃO ---
+with st.expander("⚙️ Administração"):
+    st.warning("Esta ação limpará a agenda do dia manualmente.")
+    if st.button("🗑️ Limpar Fila Agora"):
+        df_vazio = pd.DataFrame(columns=["Nome", "Vaga", "Turno", "Data"])
+        conn.update(worksheet="fila", data=df_vazio)
+        st.success("Fila limpa com sucesso!")
+        st.rerun()
