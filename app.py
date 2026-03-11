@@ -79,30 +79,38 @@ st.divider()
 st.subheader("📋 Grade de Ocupação (Hoje)")
 
 try:
-    df_view = conn.read(worksheet="fila", ttl="0")
+    # Tentativa de leitura direta com tratamento de erro
+    df_view = conn.read(ttl="0")
     
-    # Se a planilha existir mas estiver vazia, cria um DF vazio com colunas
-    if df_view is None or df_view.empty:
-        df_hoje = pd.DataFrame(columns=["Nome", "Vaga", "Turno", "Data"])
+    # Se o DataFrame vier vazio ou der erro de aba, criamos um exemplo para não quebrar a tela
+    if df_view is None:
+        st.error("Não foi possível ler os dados. Verifique o link nos Secrets.")
     else:
-        data_atual = datetime.now().strftime("%d/%m/%Y")
-        df_hoje = df_view[df_view['Data'] == data_atual]
+        data_hoje = datetime.now().strftime("%d/%m/%Y")
+        # Garante que as colunas existem antes de filtrar
+        for col in ["Data", "Turno", "Vaga", "Nome"]:
+            if col not in df_view.columns:
+                df_view[col] = ""
 
-    # Exibição dos cards
-    for hr in horarios_disponiveis:
-        cols = st.columns(2)
-        for idx, vg in enumerate(["Vaga 1", "Vaga 2"]):
-            reserva = df_hoje[(df_hoje['Turno'] == hr) & (df_hoje['Vaga'] == vg)]
-            if not reserva.empty:
-                cols[idx].error(f"🚫 {hr}\n\n{reserva.iloc[0]['Nome']}")
-            else:
-                cols[idx].success(f"✅ {hr}\n\nDisponível")
+        df_hoje = df_view[df_view['Data'] == data_hoje]
+
+        # Exibição dos cards
+        for hr in horarios_disponiveis:
+            cols = st.columns(2)
+            for idx, vg in enumerate(["Vaga 1", "Vaga 2"]):
+                reserva = df_hoje[(df_hoje['Turno'] == hr) & (df_hoje['Vaga'] == vg)]
+                if not reserva.empty and reserva.iloc[0]['Nome'] != "":
+                    cols[idx].error(f"🚫 {hr}\n\n{reserva.iloc[0]['Nome']}")
+                else:
+                    cols[idx].success(f"✅ {hr}\n\nDisponível")
+
 except Exception as e:
-    st.error("Erro ao carregar a agenda. Verifique se a aba 'fila' existe na planilha.")
-    st.info("Dica: Certifique-se de que a planilha está compartilhada como 'Editor' para 'Qualquer pessoa com o link'.")
+    st.error(f"Erro de conexão: {e}")
+    st.info("Dica: Se a planilha estiver totalmente vazia, faça um agendamento de teste primeiro.")
 
 # Botão de Gestão
 with st.expander("⚙️ Administração"):
     if st.button("Limpar todos os dados da Planilha"):
         conn.update(worksheet="fila", data=pd.DataFrame(columns=["Nome", "Vaga", "Turno", "Data"]))
         st.rerun()
+
